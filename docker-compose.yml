@@ -1,0 +1,54 @@
+services:
+    mysql:
+        image: mysql:8.0
+        container_name: mysql-auth-safestore
+        restart: no
+        env_file:
+            - .env
+        environment:
+            MYSQL_DATABASE: ${DB_NAME}
+            MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+        ports:
+            - '3306:3306'
+        volumes:
+            - mysql_data:/var/lib/mysql
+        networks:
+            - microservices
+
+    auth:
+        image: node:20
+        container_name: auth-service-safestore
+        working_dir: /app
+        env_file:
+            - .env
+        ports:
+            - '3001:3001'
+        depends_on:
+            - mysql
+        volumes:
+            - .:/app
+            - /app/node_modules
+        command: sh -c "npm install && npm run start:dev"
+        environment:
+            DB_HOST: mysql
+            DB_PORT: 3306
+            DB_USERNAME: root
+            DB_PASSWORD: ${DB_PASSWORD}
+            DB_NAME: ${DB_NAME}
+            JWT_ACCESS_EXPIRES: ${JWT_ACCESS_EXPIRES}
+            JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+            JWT_REFRESH_EXPIRES: ${JWT_REFRESH_EXPIRES}
+            SEED_RBAC: ${SEED_RBAC}
+            PORT: ${PORT}
+            FRONTEND_URL_DEV: ${FRONTEND_URL_DEV}
+            FRONTEND_URL_PROD: ${FRONTEND_URL_PROD}
+        networks:
+            - microservices
+
+volumes:
+    mysql_data:
+
+networks:
+    microservices:
+        name: shared-microservices
+        external: false

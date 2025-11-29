@@ -1,0 +1,71 @@
+name: CI/CD - Build & Deploy (auth)
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ghcr.io/ics-pa-2025/auth_microservicio_p2:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Wait for image propagation
+        run: sleep 10
+
+      - name: Deploy to Droplet via SSH
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          password: ${{ secrets.DROPLET_PASSWORD }}
+          port: ${{ secrets.DROPLET_SSH_PORT || '22' }}
+          script: |
+            set -e
+            mkdir -p /home/${{ secrets.DROPLET_USER }}/auth_microservicio_p2
+            cat > /home/${{ secrets.DROPLET_USER }}/auth_microservicio_p2/.env <<EOF
+            DB_HOST=${{ secrets.DB_HOST }}
+            DB_PORT=${{ secrets.DB_PORT }}
+            DB_USERNAME=${{ secrets.DB_USERNAME }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            DB_NAME=${{ secrets.DB_NAME }}
+            JWT_ACCESS_SECRET=${{ secrets.JWT_ACCESS_SECRET }}
+            JWT_ACCESS_EXPIRES=${{ secrets.JWT_ACCESS_EXPIRES }}
+            JWT_REFRESH_EXPIRES=${{ secrets.JWT_REFRESH_EXPIRES }}
+            SEED_RBAC=${{ secrets.SEED_RBAC }}
+            PORT=${{ secrets.PORT }}
+            FRONTEND_URL_DEV=${{ secrets.FRONTEND_URL_DEV }}
+            FRONTEND_URL_PROD=${{ secrets.FRONTEND_URL_PROD }}
+            NODE_ENV=production
+            EOF
+            chown ${{ secrets.DROPLET_USER }}:$${{ secrets.DROPLET_USER }} /home/${{ secrets.DROPLET_USER }}/auth_microservicio_p2/.env || true
+            chmod 600 /home/${{ secrets.DROPLET_USER }}/auth_microservicio_p2/.env || true
+            docker pull ghcr.io/${{ github.repository_owner }}/auth_microservicio_p2:latest
+            docker compose -f /home/${{ secrets.DROPLET_USER }}/auth_microservicio_p2/docker-compose.prod.yml pull
+            docker compose -f /home/${{ secrets.DROPLET_USER }}/auth_microservicio_p2/docker-compose.prod.yml up -d

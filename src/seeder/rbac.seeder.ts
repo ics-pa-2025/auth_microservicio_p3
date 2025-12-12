@@ -12,7 +12,7 @@ export class RbacSeeder implements OnModuleInit {
         private readonly permissionService: PermissionService,
         private readonly userService: UserService,
         private readonly configService: ConfigService
-    ) {}
+    ) { }
 
     async onModuleInit() {
         const shouldSeed = this.configService.get<boolean>('SEED_RBAC', false);
@@ -99,20 +99,16 @@ export class RbacSeeder implements OnModuleInit {
 
         const roles = [
             {
-                name: 'super_admin',
+                name: 'admin',
                 description: 'Administrador con acceso completo al sistema',
             },
             {
-                name: 'admin',
-                description: 'Administrador con permisos limitados',
-            },
-            {
-                name: 'moderator',
-                description: 'Moderador con permisos de lectura y moderación',
+                name: 'client',
+                description: 'Cliente con acceso a sus proyectos y reclamos',
             },
             {
                 name: 'user',
-                description: 'Usuario estándar con permisos básicos',
+                description: 'Usuario estándar del sistema',
             },
         ];
 
@@ -128,59 +124,48 @@ export class RbacSeeder implements OnModuleInit {
     private async assignPermissionsToRoles() {
         console.log('🔗 Asignando permisos a roles...');
 
-        // Super Admin - Todos los permisos
-        const superAdminRole = await this.roleService.findByName('super_admin');
         const allPermissions = await this.permissionService.findAll();
-        if (superAdminRole && allPermissions.length > 0) {
+
+        // 1. Admin - Acceso Total (Reemplaza a super_admin)
+        const adminRole = await this.roleService.findByName('admin');
+        if (adminRole && allPermissions.length > 0) {
             await this.roleService.setPermissions(
-                superAdminRole.id,
+                adminRole.id,
                 allPermissions.map((p) => p.id)
             );
             console.log(
-                `  ✓ Asignados ${allPermissions.length} permisos a super_admin`
+                `  ✓ Asignados ${allPermissions.length} permisos a admin`
             );
         }
 
-        // Admin - Permisos de gestión básica
-        const adminRole = await this.roleService.findByName('admin');
-        if (adminRole) {
-            const adminPermissions = allPermissions.filter(
+        // 2. Client - Permisos básicos (Lectura principalmente, o específicos si hubiera)
+        // Por ahora le damos permisos similares a 'user' o lectura de dashboard
+        const clientRole = await this.roleService.findByName('client');
+        if (clientRole) {
+            const clientPermissions = allPermissions.filter(
                 (p) =>
-                    p.name.startsWith('users:') ||
-                    p.name.startsWith('dashboard:') ||
-                    (p.name.startsWith('roles:') && p.action === 'read') ||
-                    (p.name.startsWith('permissions:') && p.action === 'read')
+                    p.name === 'dashboard:view' ||
+                    (p.name.startsWith('projects:') && p.action === 'read') // Ejemplo hipotético
             );
 
-            await this.roleService.setPermissions(
-                adminRole.id,
-                adminPermissions.map((p) => p.id)
-            );
-            console.log(
-                `  ✓ Asignados ${adminPermissions.length} permisos a admin`
-            );
+            // Si no hay permisos específicos de proyectos aún, al menos ver dashboard
+            if (clientPermissions.length === 0) {
+                const dashboardPerm = allPermissions.find(p => p.name === 'dashboard:view');
+                if (dashboardPerm) clientPermissions.push(dashboardPerm);
+            }
+
+            if (clientPermissions.length > 0) {
+                await this.roleService.setPermissions(
+                    clientRole.id,
+                    clientPermissions.map((p) => p.id)
+                );
+                console.log(
+                    `  ✓ Asignados ${clientPermissions.length} permisos a client`
+                );
+            }
         }
 
-        // Moderator - Permisos de lectura y usuarios
-        const moderatorRole = await this.roleService.findByName('moderator');
-        if (moderatorRole) {
-            const moderatorPermissions = allPermissions.filter(
-                (p) =>
-                    p.action === 'read' ||
-                    (p.name?.startsWith('users:') &&
-                        ['read', 'update'].includes(p.action ?? ''))
-            );
-
-            await this.roleService.setPermissions(
-                moderatorRole.id,
-                moderatorPermissions.map((p) => p.id)
-            );
-            console.log(
-                `  ✓ Asignados ${moderatorPermissions.length} permisos a moderator`
-            );
-        }
-
-        // User - Solo permisos básicos
+        // 3. User - Permisos básicos
         const userRole = await this.roleService.findByName('user');
         if (userRole) {
             const userPermissions = allPermissions.filter(
@@ -219,15 +204,14 @@ export class RbacSeeder implements OnModuleInit {
             const adminUser = await this.userService.create(
                 adminEmail,
                 passwordHash,
-                'martin'
+                'Administrador'
             );
 
-            // Asignar rol super_admin
-            const superAdminRole =
-                await this.roleService.findByName('super_admin');
-            if (superAdminRole) {
+            // Asignar rol admin
+            const adminRole = await this.roleService.findByName('admin');
+            if (adminRole) {
                 await this.userService.setRoles(adminUser.id, [
-                    superAdminRole.id,
+                    adminRole.id,
                 ]);
                 console.log(`  ✓ Usuario admin creado: ${adminEmail}`);
                 console.log(
@@ -236,6 +220,12 @@ export class RbacSeeder implements OnModuleInit {
             }
         } else {
             console.log(`  ℹ️  Usuario admin ya existe: ${adminEmail}`);
+            // Opcional: Asegurarse de que tenga el rol admin si ya existe
+            const adminRole = await this.roleService.findByName('admin');
+            if (adminRole && !existingUser.hasRole('admin')) {
+                await this.userService.assignRoles(existingUser.id, [adminRole.id]);
+                console.log(`  ✓ Rol admin asignado a usuario existente: ${adminEmail}`);
+            }
         }
     }
 

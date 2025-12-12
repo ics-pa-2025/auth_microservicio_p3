@@ -1,7 +1,7 @@
 services:
     mysql:
         image: mysql:8.0
-        container_name: mysql-auth-safestore
+        container_name: mysql-auth-claimflow
         restart: no
         env_file:
             - .env

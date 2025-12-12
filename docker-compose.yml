@@ -17,7 +17,7 @@ services:
 
     auth:
         image: node:20
-        container_name: auth-service-safestore
+        container_name: auth-service-claimflow
         working_dir: /app
         env_file:
             - .env

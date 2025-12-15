@@ -8,7 +8,18 @@ import {
     Post,
     Put,
     ValidationPipe,
+    Req,
+    UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { Request } from 'express';
+
+// Extend Express Request interface to include 'user'
+declare module 'express' {
+    interface Request {
+        user?: any;
+    }
+}
 import { UserService } from './user.service';
 import { RequirePermissions } from 'src/decorators/permissions.decorator';
 import { AssignRolesDto } from './dto/assign-roles.dto';
@@ -19,6 +30,21 @@ import * as bcrypt from 'bcryptjs';
 @Controller('user')
 export class UserController {
     constructor(private readonly userService: UserService) { }
+
+    @Get('me')
+    @UseGuards(JwtAuthGuard)
+    async getMe(@Req() req: Request) {
+        // req.user debe estar poblado por JwtAuthGuard
+        // userService.getUserWithRoles espera un id
+        const user: any = req.user;
+        // JwtStrategy retorna { userId, email }
+        if (!user || !(user.userId || user.id)) {
+            return { error: 'No user found in request' };
+        }
+        // Devuelve el usuario con roles
+        const id = user.userId || user.id;
+        return this.userService.getUserWithRoles(id);
+    }
 
     @Post()
     @RequirePermissions('users:create') // Assuming this permission is checked or will be added

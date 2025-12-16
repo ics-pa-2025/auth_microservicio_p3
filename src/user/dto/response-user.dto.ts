@@ -4,8 +4,9 @@ export class ResponseUserDto {
     fullname?: string;
     phone?: string;
     address?: string;
+    dni?: string;
     isActive?: boolean;
-    rolesId?: string[];
+    roles?: string[];
 
     constructor(
         id: string,
@@ -13,15 +14,17 @@ export class ResponseUserDto {
         fullname: string,
         phone: string,
         address?: string,
+        dni?: string,
         isActive?: boolean,
-        rolesId?: string[]
+        roles?: string[]
     ) {
         this.id = id;
         this.email = email;
         this.fullname = fullname;
         this.phone = phone;
         this.address = address;
+        this.dni = dni;
         this.isActive = isActive;
-        this.rolesId = rolesId;
+        this.roles = roles;
     }
 }

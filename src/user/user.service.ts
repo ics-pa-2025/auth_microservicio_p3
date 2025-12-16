@@ -13,10 +13,10 @@ export class UserService {
         private readonly repo: Repository<User>,
         @InjectRepository(Role)
         private roleRepository: Repository<Role>
-    ) {}
+    ) { }
 
     getAll() {
-        const users = this.repo.find();
+        const users = this.repo.find({ relations: ['roles'] });
         return users.then((users) =>
             users.map(
                 (user) =>
@@ -26,14 +26,15 @@ export class UserService {
                         user.fullname,
                         user.phone,
                         user.address,
+                        user.dni,
                         user.isActive,
-                        user.roles ? user.roles.map((role) => role.id) : []
+                        user.roles ? user.roles.map((role) => role.name) : []
                     )
             )
         );
     }
 
-    async deleteById(id: string){
+    async deleteById(id: string) {
         const user = await this.repo.findOne({ where: { id } });
         const isActive = false
         await this.repo.update({ id: id }, { isActive });
@@ -70,8 +71,8 @@ export class UserService {
         return this.repo.findOne({ where: { id } });
     }
 
-    async create(email: string, password: string, fullname: string, phone: string = "", address: string = "") {
-        const user = this.repo.create({ email, password, fullname, phone, address });
+    async create(email: string, password: string, fullname: string, phone: string = "", address: string = "", dni: string = "") {
+        const user = this.repo.create({ email, password, fullname, phone, address, dni });
         return this.repo.save(user);
     }
 

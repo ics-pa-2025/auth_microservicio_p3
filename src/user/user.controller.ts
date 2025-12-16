@@ -8,15 +8,71 @@ import {
     Post,
     Put,
     ValidationPipe,
+    Req,
+    UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { Request } from 'express';
+
+// Extend Express Request interface to include 'user'
+declare module 'express' {
+    interface Request {
+        user?: any;
+    }
+}
 import { UserService } from './user.service';
 import { RequirePermissions } from 'src/decorators/permissions.decorator';
 import { AssignRolesDto } from './dto/assign-roles.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { CreateUserDto } from './dto/create-user.dto';
+import * as bcrypt from 'bcryptjs';
 
 @Controller('user')
 export class UserController {
-    constructor(private readonly userService: UserService) {}
+    constructor(private readonly userService: UserService) { }
+
+    @Get('me')
+    @UseGuards(JwtAuthGuard)
+    async getMe(@Req() req: Request) {
+        // req.user debe estar poblado por JwtAuthGuard
+        // userService.getUserWithRoles espera un id
+        const user: any = req.user;
+        // JwtStrategy retorna { userId, email }
+        if (!user || !(user.userId || user.id)) {
+            return { error: 'No user found in request' };
+        }
+        // Devuelve el usuario con roles
+        const id = user.userId || user.id;
+        return this.userService.getUserWithRoles(id);
+    }
+
+    @Post()
+    @RequirePermissions('users:create') // Assuming this permission is checked or will be added
+    async create(@Body(ValidationPipe) createUserDto: CreateUserDto) {
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(createUserDto.password, salt);
+
+        const user = await this.userService.create(
+            createUserDto.email,
+            passwordHash,
+            createUserDto.fullname,
+            createUserDto.phone,
+            createUserDto.address,
+            createUserDto.dni
+        );
+
+        if (createUserDto.roleIds && createUserDto.roleIds.length > 0) {
+            await this.userService.assignRoles(user.id, createUserDto.roleIds);
+            // Reload user with roles for response? 
+            // assignRoles returns the user but create logic might separate it. 
+            // Let's assume we want to return the user with roles? 
+            // The assignRoles method in service returns repo.save(user), which should have roles populated?
+            // Actually assignRoles does `findOne` with relations, modifies, and saves.
+            return this.userService.getUserWithRoles(user.id);
+        }
+
+        return user;
+    }
 
     @Get()
     @RequirePermissions('users:read')
@@ -25,8 +81,7 @@ export class UserController {
     }
 
     @Delete(':id')
-    deleteById(@Param('id') id : string)
-    {
+    deleteById(@Param('id') id: string) {
         this.userService.deleteById(id)
     }
 

@@ -3,7 +3,7 @@ version: '3.8'
 services:
   mysql:
     image: mysql:8.0
-    container_name: auth_microservicio_p2_db
+    container_name: auth_claimflow_db
     restart: unless-stopped
     env_file:
       - .env
@@ -13,13 +13,13 @@ services:
     ports:
       - '3306:3306'
     volumes:
-      - mysql_data:/var/lib/mysql
+      - auth_claimflow_mysql_data:/var/lib/mysql
     networks:
       - microservices
 
   auth:
     image: ghcr.io/ics-pa-2025/auth_microservicio_p2:latest
-    container_name: auth_microservicio_p2
+    container_name: auth
     restart: unless-stopped
     depends_on:
       - mysql
@@ -27,22 +27,23 @@ services:
       - .env
     environment:
       DATABASE_URL: mysql://${DB_USERNAME}:${DB_PASSWORD}@mysql:3306/${DB_NAME}
-      JWT_SECRET: ${JWT_SECRET}
       NODE_ENV: production
       PORT: 3001
       FRONTEND_URL_PROD: ${FRONTEND_URL_PROD}
       FRONTEND_URL_DEV: ${FRONTEND_URL_DEV}
       SEED_RBAC: ${SEED_RBAC}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_ACCESS_EXPIRES: ${JWT_ACCESS_EXPIRES}
       JWT_REFRESH_EXPIRES: ${JWT_REFRESH_EXPIRES}
     ports:
       - '3001:3001'
     networks:
       - microservices
+
 volumes:
-  mysql_data:
-  
+  auth_claimflow_mysql_data:
+
 networks:
   microservices:
-    name: safestore-microservices
+    name: claimflow-microservices
     external: true

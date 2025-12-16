@@ -48,10 +48,16 @@ jobs:
           port: ${{ secrets.DROPLET_SSH_PORT || '22' }}
           script: |
             set -e
-            mkdir -p /home/${{ secrets.DROPLET_USER }}/auth_microservicio_p2
-            cat > /home/${{ secrets.DROPLET_USER }}/auth_microservicio_p2/.env <<EOF
-            DB_HOST=${{ secrets.DB_HOST }}
-            DB_PORT=${{ secrets.DB_PORT }}
+
+            APP_DIR=/home/${{ secrets.DROPLET_USER }}/auth_claimflow
+            mkdir -p $APP_DIR
+            cd $APP_DIR
+
+            if [ ! -f docker-compose.prod.yml ]; then
+              curl -o docker-compose.prod.yml https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.prod.yml
+            fi
+
+            cat > .env <<EOF
             DB_USERNAME=${{ secrets.DB_USERNAME }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
             DB_NAME=${{ secrets.DB_NAME }}
@@ -59,13 +65,12 @@ jobs:
             JWT_ACCESS_EXPIRES=${{ secrets.JWT_ACCESS_EXPIRES }}
             JWT_REFRESH_EXPIRES=${{ secrets.JWT_REFRESH_EXPIRES }}
             SEED_RBAC=${{ secrets.SEED_RBAC }}
-            PORT=${{ secrets.PORT }}
             FRONTEND_URL_DEV=${{ secrets.FRONTEND_URL_DEV }}
             FRONTEND_URL_PROD=${{ secrets.FRONTEND_URL_PROD }}
             NODE_ENV=production
+            PORT=3001
             EOF
-            chown ${{ secrets.DROPLET_USER }}:$${{ secrets.DROPLET_USER }} /home/${{ secrets.DROPLET_USER }}/auth_microservicio_p2/.env || true
-            chmod 600 /home/${{ secrets.DROPLET_USER }}/auth_microservicio_p2/.env || true
-            docker pull ghcr.io/${{ github.repository_owner }}/auth_microservicio_p2:latest
-            docker compose -f /home/${{ secrets.DROPLET_USER }}/auth_microservicio_p2/docker-compose.prod.yml pull
-            docker compose -f /home/${{ secrets.DROPLET_USER }}/auth_microservicio_p2/docker-compose.prod.yml up -d
+
+            docker pull ghcr.io/ics-pa-2025/auth_microservicio_p2:latest
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d
